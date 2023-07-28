@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+import "blockchain.proto";
+
+message ExecutedHeader {
+    bytes prevhash = 1;
+    uint64 timestamp = 2;
+    uint64 height = 3;
+    bytes state_root = 4;
+    bytes transactions_root = 5;
+    bytes receipts_root = 6;
+    bytes log_bloom = 7;
+    uint64 quota_used = 8;
+    uint64 quota_limit = 9;
+    bytes proposer = 10;
+}
+
+enum ReceiptError {
+    //ExecutionError
+    NotEnoughBaseQuota = 0;
+    BlockQuotaLimitReached = 1;
+    AccountQuotaLimitReached = 2;
+    InvalidTransactionNonce = 3;
+    NotEnoughCash = 4;
+    NoTransactionPermission = 5;
+    NoContractPermission = 6;
+    NoCallPermission = 7;
+    ExecutionInternal = 8;
+    TransactionMalformed = 9;
+    //EvmError
+    OutOfQuota = 10;
+    BadJumpDestination = 11;
+    BadInstruction = 12;
+    StackUnderflow = 13;
+    OutOfStack = 14;
+    Internal = 15;
+    MutableCallInStaticContext = 16;
+    OutOfBounds = 17;
+    Reverted = 18;
+    AccountFrozen = 19;
+}
+
+message LogEntry {
+    bytes address = 1;
+    repeated bytes topics = 2;
+    bytes data = 3;
+}
+
+message ReceiptErrorWithOption {
+    ReceiptError error = 1;
+}
+
+message StateRoot {
+    bytes state_root = 1;
+}
+
+message Receipt {
+    StateRoot state_root = 1;
+    string quota_used = 2;
+    bytes log_bloom = 3;
+    repeated LogEntry logs = 4;
+    ReceiptErrorWithOption error = 5;
+    uint64 account_nonce = 6;
+    bytes transaction_hash = 7;
+}
+
+message ReceiptWithOption {
+    Receipt receipt = 1;
+}
+
+message ExecutedInfo {
+    ExecutedHeader header = 1;
+    repeated ReceiptWithOption receipts = 3;
+}
+
+message ConsensusConfig {
+    uint64 block_quota_limit = 1;
+    AccountGasLimit account_quota_limit = 2;
+    repeated bytes nodes = 3;
+    uint64 block_interval = 4;
+    bool check_quota = 5;
+    bytes admin_address = 6;
+    uint32 version = 7;
+    repeated bytes validators = 8;
+}
+
+message ExecutedResult {
+    ExecutedInfo executed_info = 1;
+    ConsensusConfig config = 2;
+}
+
+message TrieID {
+    bytes block_hash = 1;
+    bytes state_root = 2;
+    uint64 block_number = 3;
+    bytes acc_key = 4;
+}
+
+message TrieResponse {
+    TrieID id = 1;
+    bytes key = 2;
+    repeated bytes state_proof = 3;
+}
+
+message ReceiptResponse {
+    bool untrusted = 1;
+    bytes hash = 2;
+    uint64 number = 3;
+    BlockWithLogBloom block = 4;
+    repeated Receipt receipts = 5;
+}
+
+message CodeResponse {
+    TrieID id = 1;
+    bytes address = 2;
+    bytes  data = 3;
+}
+
+message AbiResponse {
+    TrieID id = 1;
+    bytes address = 2;
+    bytes  data = 3;
+}
+
+message TransactionResponse {
+    bytes block_hash = 1;
+    BlockWithLogBloom block = 2;
+    uint64 index = 3;
+}
+
+message ValidatorsListReq {
+    uint64 height = 1;
+}
+
+message ValidatorsListResp {
+    repeated bytes validators = 1;
+    uint64 height = 2;
+}

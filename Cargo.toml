@@ -1,0 +1,2 @@
+[workspace]
+members = ["cita-tool", "tool-derive"]
