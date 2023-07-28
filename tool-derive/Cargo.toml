@@ -1,7 +1,9 @@
 [package]
 name = "tool-derive"
+description = "derive macro for tool"
 version = "0.2.0"
 authors = ["piaoliu <441594700@qq.com>"]
+license = "MIT"
 edition = "2021"
 
 [lib]
