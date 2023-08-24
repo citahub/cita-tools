@@ -23,7 +23,7 @@ lazy_static! {
 const SIGNATURE_BYTES_LEN: usize = 65;
 
 /// Secp256k1 key pair
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Secp256k1KeyPair {
     privkey: Secp256k1PrivKey,
     pubkey: Secp256k1PubKey,

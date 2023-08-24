@@ -10,6 +10,7 @@ use types::Address;
 const SIGNATURE_BYTES_LEN: usize = 128;
 
 /// Sm2 key pair
+#[derive(Default, Clone)]
 pub struct Sm2KeyPair {
     privkey: Sm2Privkey,
     pubkey: Sm2Pubkey,

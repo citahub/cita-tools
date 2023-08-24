@@ -173,6 +173,7 @@ impl fmt::Display for PubKey {
 }
 
 /// key pair of Secp256k1/Sm2
+#[derive(Clone)]
 pub enum KeyPair {
     /// Secp256k1
     Secp256k1(Secp256k1KeyPair),
