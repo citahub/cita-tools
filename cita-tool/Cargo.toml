@@ -24,7 +24,8 @@ tiny-keccak = "2.0.2"
 secp256k1 = { version = "0.27", features = ["recovery", "global-context", "rand-std"]}
 blake2b_simd = "1.0.0"
 sha2 = "0.10.6"
-libsm = { version = "0.3.0", package = "cryptape-sm" }
+libsm = "0.5"
+efficient-sm2 = "0.2"
 # rename to types
 types = { version = "0.14.1", package = "ethereum-types"}
 lazy_static = "1.0"

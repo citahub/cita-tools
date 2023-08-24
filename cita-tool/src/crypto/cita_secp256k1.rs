@@ -1,6 +1,7 @@
 use crate::crypto::{
     pubkey_to_address, CreateKey, Error, Message, PubKey, Secp256k1PrivKey, Secp256k1PubKey,
 };
+use crate::Signature;
 use hex::encode;
 use lazy_static::lazy_static;
 use rand::rngs::OsRng;
@@ -9,6 +10,7 @@ use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Error as SecpError, Message as SecpMessage, PublicKey, Secp256k1, SecretKey,
 };
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
@@ -80,6 +82,15 @@ impl CreateKey for Secp256k1KeyPair {
 
     fn address(&self) -> Address {
         pubkey_to_address(&PubKey::Secp256k1(self.pubkey))
+    }
+
+    fn sign_raw(&self, data: &[u8]) -> Result<Signature, Error> {
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        Ok(Signature::Secp256k1(secp256k1_sign(
+            self.privkey(),
+            &H256::from_slice(&hasher.finalize().as_slice()),
+        )?))
     }
 }
 

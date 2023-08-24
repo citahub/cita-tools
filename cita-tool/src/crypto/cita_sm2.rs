@@ -1,10 +1,11 @@
+use crate::crypto::{pubkey_to_address, CreateKey, Error, Message, PubKey, Sm2Privkey, Sm2Pubkey};
+use crate::Signature;
+use efficient_sm2::{KeyPair, PublicKey};
 use hex::encode;
-use libsm::sm2::signature::{SigCtx, Signature as RawSignature};
+use libsm::sm2::signature::SigCtx;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use types::Address;
-
-use crate::crypto::{pubkey_to_address, CreateKey, Error, Message, PubKey, Sm2Privkey, Sm2Pubkey};
 
 const SIGNATURE_BYTES_LEN: usize = 128;
 
@@ -32,17 +33,20 @@ impl CreateKey for Sm2KeyPair {
         ctx.load_seckey(&privkey.0)
             .map_err(|_| Error::RecoverError)
             .map(|sk| {
-                let pk = ctx.pk_from_sk(&sk);
-                let pubkey = Sm2Pubkey::from_slice(&ctx.serialize_pubkey(&pk, false)[1..]);
+                let pk = match ctx.pk_from_sk(&sk) {
+                    Ok(pk) => pk,
+                    Err(_) => panic!("sm2 pk_from_sk failed"),
+                };
+                let pubkey = Sm2Pubkey::from_slice(&ctx.serialize_pubkey(&pk, false).unwrap()[1..]);
                 Sm2KeyPair { privkey, pubkey }
             })
     }
 
     fn gen_keypair() -> Self {
         let ctx = SigCtx::new();
-        let (pk, sk) = ctx.new_keypair();
-        let pubkey = Sm2Pubkey::from_slice(&ctx.serialize_pubkey(&pk, false)[1..]);
-        let privkey = Sm2Privkey::from_slice(&ctx.serialize_seckey(&sk)[..]);
+        let (pk, sk) = ctx.new_keypair().unwrap();
+        let pubkey = Sm2Pubkey::from_slice(&ctx.serialize_pubkey(&pk, false).unwrap()[1..]);
+        let privkey = Sm2Privkey::from_slice(&ctx.serialize_seckey(&sk).unwrap());
         Sm2KeyPair { privkey, pubkey }
     }
 
@@ -56,6 +60,17 @@ impl CreateKey for Sm2KeyPair {
 
     fn address(&self) -> Address {
         pubkey_to_address(&PubKey::Sm2(self.pubkey))
+    }
+
+    fn sign_raw(&self, data: &[u8]) -> Result<Signature, Error> {
+        let keypair = KeyPair::new(self.privkey.as_bytes()).map_err(|_| Error::InvalidPrivKey)?;
+        let sig = keypair.sign(data).map_err(|_| Error::InvalidMessage)?;
+
+        let mut sig_bytes = [0u8; SIGNATURE_BYTES_LEN];
+        sig_bytes[..32].copy_from_slice(&sig.r());
+        sig_bytes[32..64].copy_from_slice(&sig.s());
+        sig_bytes[64..].copy_from_slice(&keypair.public_key().bytes_less_safe()[1..]);
+        Ok(Signature::Sm2(Sm2Signature(sig_bytes)))
     }
 }
 
@@ -80,56 +95,35 @@ impl Sm2Signature {
 
     /// Recover public key
     pub fn recover(&self, message: &Message) -> Result<Sm2Pubkey, Error> {
-        let ctx = SigCtx::new();
-        let sig = RawSignature::new(self.r(), self.s());
-        let mut pk_full = [0u8; 65];
-        pk_full[0] = 4;
-        pk_full[1..].copy_from_slice(self.pk());
-        ctx.load_pubkey(&pk_full[..])
-            .map_err(|_| Error::RecoverError)
-            .and_then(|pk| {
-                if ctx.verify(message.as_bytes(), &pk, &sig) {
-                    Ok(Sm2Pubkey::from_slice(self.pk()))
-                } else {
-                    Err(Error::RecoverError)
-                }
-            })
+        let pub_key = Sm2Pubkey::from_slice(self.pk());
+        self.verify_public(&pub_key, message)?;
+
+        Ok(pub_key)
     }
 
     /// Verify public key
     pub fn verify_public(&self, pubkey: &Sm2Pubkey, message: &Message) -> Result<bool, Error> {
-        let pubkey_from_sig = Sm2Pubkey::from_slice(self.pk());
-        if pubkey_from_sig == *pubkey {
-            let ctx = SigCtx::new();
-            let sig = RawSignature::new(self.r(), self.s());
-            let mut pk_full = [0u8; 65];
-            pk_full[0] = 4;
-            pk_full[1..].copy_from_slice(self.pk());
-            ctx.load_pubkey(&pk_full[..])
-                .map_err(|_| Error::RecoverError)
-                .map(|pk| ctx.verify(message.as_bytes(), &pk, &sig))
-        } else {
-            Ok(false)
-        }
+        let pub_key = PublicKey::from_slice(pubkey.as_bytes());
+        let sig = efficient_sm2::Signature::new(self.r(), self.s())
+            .map_err(|_| Error::InvalidSignature)?;
+        sig.verify_digest(&pub_key, message.as_bytes())
+            .map_err(|_| Error::RecoverError)
+            .map(|_| true)
     }
 }
 
 /// Sign data with sm2
 pub fn sm2_sign(privkey: &Sm2Privkey, message: &Message) -> Result<Sm2Signature, Error> {
-    let ctx = SigCtx::new();
-    ctx.load_seckey(&privkey.0)
-        .map_err(|_| Error::RecoverError)
-        .map(|sk| {
-            let pk = ctx.pk_from_sk(&sk);
-            let signature = ctx.sign(message.as_bytes(), &sk, &pk);
-            let mut sig_bytes = [0u8; SIGNATURE_BYTES_LEN];
-            let r_bytes = signature.get_r().to_bytes_be();
-            let s_bytes = signature.get_s().to_bytes_be();
-            sig_bytes[32 - r_bytes.len()..32].copy_from_slice(&r_bytes[..]);
-            sig_bytes[64 - s_bytes.len()..64].copy_from_slice(&s_bytes[..]);
-            sig_bytes[64..].copy_from_slice(&ctx.serialize_pubkey(&pk, false)[1..]);
-            sig_bytes.into()
-        })
+    let keypair = KeyPair::new(privkey.as_bytes()).map_err(|_| Error::InvalidPrivKey)?;
+    let sig = keypair
+        .sign(message.as_bytes())
+        .map_err(|_| Error::InvalidMessage)?;
+
+    let mut sig_bytes = [0u8; SIGNATURE_BYTES_LEN];
+    sig_bytes[..32].copy_from_slice(&sig.r());
+    sig_bytes[32..64].copy_from_slice(&sig.s());
+    sig_bytes[64..].copy_from_slice(&keypair.public_key().bytes_less_safe()[1..]);
+    Ok(Sm2Signature(sig_bytes))
 }
 
 impl fmt::Debug for Sm2Signature {

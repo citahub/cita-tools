@@ -1,4 +1,5 @@
 use crate::crypto::Encryption;
+use crate::Signature;
 use blake2b_simd::Params;
 use libsm::sm3;
 use std::{fmt, marker};
@@ -29,6 +30,8 @@ where
     fn pubkey(&self) -> &Self::PubKey;
     /// Get address of the public key
     fn address(&self) -> Address;
+    /// Sign raw data
+    fn sign_raw(&self, data: &[u8]) -> Result<Signature, Self::Error>;
 }
 
 /// Hashable for some type
@@ -99,6 +102,8 @@ pub enum Error {
     RecoverError,
     /// Io error
     Io(::std::io::Error),
+    /// null
+    Null,
 }
 
 impl fmt::Display for Error {
@@ -110,6 +115,7 @@ impl fmt::Display for Error {
             Error::InvalidMessage => "Invalid AES message".into(),
             Error::RecoverError => "Recover Error".into(),
             Error::Io(ref err) => format!("I/O error: {err}"),
+            Error::Null => "Null crypto".into(),
         };
         f.write_fmt(format_args!("Crypto error ({msg})"))
     }

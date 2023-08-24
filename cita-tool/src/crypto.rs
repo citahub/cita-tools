@@ -228,9 +228,7 @@ impl KeyPair {
             KeyPair::Null => Address::default(),
         }
     }
-}
 
-impl KeyPair {
     /// New from private key
     pub fn from_str(private_key: &str, encryption: Encryption) -> Result<Self, String> {
         match PrivateKey::from_str(private_key, encryption)? {
@@ -241,6 +239,15 @@ impl KeyPair {
                 Sm2KeyPair::from_privkey(private).map_err(|err| format!("{err}"))?,
             )),
             PrivateKey::Null => Ok(KeyPair::Null),
+        }
+    }
+
+    /// sign raw data
+    pub fn sign_raw(&self, data: &[u8]) -> Result<Signature, Error> {
+        match self {
+            KeyPair::Secp256k1(key_pair) => key_pair.sign_raw(data),
+            KeyPair::Sm2(key_pair) => key_pair.sign_raw(data),
+            KeyPair::Null => Err(Error::Null),
         }
     }
 }
