@@ -2,14 +2,13 @@ mod cita_secp256k1;
 mod cita_sm2;
 mod crypto_trait;
 
-use hex::encode;
-use std::fmt;
-use std::str::FromStr;
-
 pub use self::cita_secp256k1::{secp256k1_sign, Secp256k1KeyPair, Secp256k1Signature};
 pub use self::cita_sm2::{sm2_sign, Sm2KeyPair, Sm2Signature};
 pub use self::crypto_trait::{CreateKey, Error, Hashable};
 use crate::LowerHex;
+use hex::encode;
+use std::fmt;
+use std::str::FromStr;
 use types::{Address, H256, H512};
 
 /// Secp256k1 Private key

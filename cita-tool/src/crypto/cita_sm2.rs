@@ -1,8 +1,7 @@
 use crate::crypto::{pubkey_to_address, CreateKey, Error, Message, PubKey, Sm2Privkey, Sm2Pubkey};
-use crate::Signature;
-use efficient_sm2::{KeyPair, PublicKey};
+use crate::{Signature, H256, H512};
+use efficient_sm2::{create_key_slice, DefaultRand, KeyPair, PublicKey};
 use hex::encode;
-use libsm::sm2::signature::SigCtx;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use types::Address;
@@ -30,25 +29,16 @@ impl CreateKey for Sm2KeyPair {
     type Error = Error;
 
     fn from_privkey(privkey: Self::PrivKey) -> Result<Self, Self::Error> {
-        let ctx = SigCtx::new();
-        ctx.load_seckey(&privkey.0)
-            .map_err(|_| Error::RecoverError)
-            .map(|sk| {
-                let pk = match ctx.pk_from_sk(&sk) {
-                    Ok(pk) => pk,
-                    Err(_) => panic!("sm2 pk_from_sk failed"),
-                };
-                let pubkey = Sm2Pubkey::from_slice(&ctx.serialize_pubkey(&pk, false).unwrap()[1..]);
-                Sm2KeyPair { privkey, pubkey }
-            })
+        let key_pair = KeyPair::new(privkey.as_bytes()).map_err(|_| Error::InvalidPrivKey)?;
+        Ok(Sm2KeyPair {
+            privkey,
+            pubkey: H512::from_slice(&key_pair.public_key().bytes_less_safe()[1..]),
+        })
     }
 
     fn gen_keypair() -> Self {
-        let ctx = SigCtx::new();
-        let (pk, sk) = ctx.new_keypair().unwrap();
-        let pubkey = Sm2Pubkey::from_slice(&ctx.serialize_pubkey(&pk, false).unwrap()[1..]);
-        let privkey = Sm2Privkey::from_slice(&ctx.serialize_seckey(&sk).unwrap());
-        Sm2KeyPair { privkey, pubkey }
+        let private = H256(create_key_slice());
+        Self::from_privkey(private).unwrap()
     }
 
     fn privkey(&self) -> &Self::PrivKey {
@@ -117,7 +107,7 @@ impl Sm2Signature {
 pub fn sm2_sign(privkey: &Sm2Privkey, message: &Message) -> Result<Sm2Signature, Error> {
     let keypair = KeyPair::new(privkey.as_bytes()).map_err(|_| Error::InvalidPrivKey)?;
     let sig = keypair
-        .sign(message.as_bytes())
+        .sign_digest(&mut DefaultRand(rand::thread_rng()), message.as_bytes())
         .map_err(|_| Error::InvalidMessage)?;
 
     let mut sig_bytes = [0u8; SIGNATURE_BYTES_LEN];
