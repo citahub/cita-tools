@@ -9,6 +9,7 @@ pub struct TransactionOptions<'a> {
     quota: Option<u64>,
     value: Option<U256>,
     version: Option<u32>,
+    sender: Option<&'a str>,
 }
 
 impl<'a> TransactionOptions<'a> {
@@ -21,6 +22,7 @@ impl<'a> TransactionOptions<'a> {
             quota: None,
             value: None,
             version: None,
+            sender: None,
         }
     }
 
@@ -101,6 +103,18 @@ impl<'a> TransactionOptions<'a> {
         self.address = "0x";
         self.code = "0x";
         self.version = None
+    }
+
+    /// Set sender. Sender account address,
+    /// default is none, which use default account
+    pub fn set_sender(mut self, address: &'a str) -> Self {
+        self.sender = Some(address);
+        self
+    }
+
+    /// Get address
+    pub fn sender(&self) -> Option<&str> {
+        self.sender
     }
 }
 
