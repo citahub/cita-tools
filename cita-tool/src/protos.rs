@@ -7,28 +7,35 @@ use crate::crypto::PubKey;
 use crate::crypto::{
     pubkey_to_address, sign, Encryption, Hashable, KeyPair, PrivateKey, Signature,
 };
+use crate::error::ToolError;
 use crate::LowerHex;
 use protobuf::Message as MessageTrait;
 use protobuf::{parse_from_bytes, ProtobufEnum};
 use serde_json::{json, Value};
 use std::convert::From;
-use types::{Address, H256, U256};
-
-use crate::error::ToolError;
 use std::str::FromStr;
+use types::{Address, H256, U256};
 
 impl UnverifiedTransaction {
     /// UnverifiedTransaction as JSON Value
-    pub fn to_json(&self, encryption: Encryption) -> Result<Value, String> {
+    pub fn to_json(&self) -> Result<Value, String> {
         let tx = match self.transaction.as_ref() {
             Some(tx) => tx,
             None => return Err("Bad Transaction".to_string()),
         };
-        let pub_key = self.public_key(encryption)?;
+        let pub_key = self.public_key()?;
         let to_v1 = if tx.to_v1.is_empty() {
             &[0u8; 20]
         } else {
             tx.to_v1.as_slice()
+        };
+        let signature = self.get_signature();
+        let encryption = if signature.len() == 65 {
+            Encryption::Secp256k1
+        } else if signature.len() == 128 {
+            Encryption::Sm2
+        } else {
+            return Err("Invalid signature length".to_string());
         };
         Ok(json!({
             "transaction": {
@@ -52,13 +59,20 @@ impl UnverifiedTransaction {
     }
 
     /// Get the transaction public key
-    pub fn public_key(&self, encryption: Encryption) -> Result<PubKey, String> {
+    pub fn public_key(&self) -> Result<PubKey, String> {
+        let signature = self.get_signature();
+        let encryption = if signature.len() == 65 {
+            Encryption::Secp256k1
+        } else if signature.len() == 128 {
+            Encryption::Sm2
+        } else {
+            return Err("Invalid signature length".to_string());
+        };
         let bytes: Vec<u8> = self
             .get_transaction()
             .write_to_bytes()
             .map_err(|e| e.to_string())?;
         let hash = bytes.crypt_hash(encryption);
-        let signature = self.get_signature();
         let sig = Signature::from(signature);
 
         match self.get_crypto() {
@@ -80,8 +94,8 @@ impl FromStr for UnverifiedTransaction {
 
 impl Transaction {
     /// Sign data
-    pub fn sign(&self, sk: PrivateKey) -> SignedTransaction {
-        let key_pair = KeyPair::from_privkey(sk);
+    pub fn sign(&self, sk: &PrivateKey) -> SignedTransaction {
+        let key_pair = KeyPair::from_privkey(sk.clone());
         let pubkey = key_pair.pubkey();
 
         let unverified_tx = self.build_unverified(sk);
@@ -103,7 +117,7 @@ impl Transaction {
     }
 
     /// Build unverified transaction
-    pub fn build_unverified(&self, sk: PrivateKey) -> UnverifiedTransaction {
+    pub fn build_unverified(&self, sk: &PrivateKey) -> UnverifiedTransaction {
         let mut unverified_tx = UnverifiedTransaction::new();
         let bytes: Vec<u8> = self.write_to_bytes().unwrap();
 
@@ -114,7 +128,7 @@ impl Transaction {
         };
 
         unverified_tx.set_transaction(self.clone());
-        let signature = sign(&sk, &hash);
+        let signature = sign(sk, &hash);
         unverified_tx.set_signature(signature.to_vec());
         unverified_tx.set_crypto(Crypto::DEFAULT);
         unverified_tx

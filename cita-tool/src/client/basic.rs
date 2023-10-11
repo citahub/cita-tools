@@ -353,7 +353,7 @@ impl Client {
         Ok(format!(
             "0x{}",
             encode(
-                tx.build_unverified(*self.private_key().ok_or_else(|| ToolError::Customize(
+                tx.build_unverified(self.private_key().ok_or_else(|| ToolError::Customize(
                     "The provided private key do not match the algorithm".to_string(),
                 ))?)
                 .write_to_bytes()

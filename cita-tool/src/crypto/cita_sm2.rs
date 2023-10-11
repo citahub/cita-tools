@@ -1,6 +1,6 @@
 use crate::crypto::{pubkey_to_address, CreateKey, Error, Message, PubKey, Sm2Privkey, Sm2Pubkey};
 use crate::{Signature, H256, H512};
-use efficient_sm2::{create_key_slice, DefaultRand, KeyPair, PublicKey};
+use efficient_sm2::{create_key_slice, KeyPair, PublicKey};
 use hex::encode;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
@@ -69,18 +69,19 @@ impl CreateKey for Sm2KeyPair {
 pub struct Sm2Signature(pub [u8; 128]);
 
 impl Sm2Signature {
+    /// Get a slice into the 'r' portion of the data.
     #[inline]
-    fn r(&self) -> &[u8] {
+    pub fn r(&self) -> &[u8] {
         &self.0[0..32]
     }
-
+    /// Get a slice into the 's' portion of the data.
     #[inline]
-    fn s(&self) -> &[u8] {
+    pub fn s(&self) -> &[u8] {
         &self.0[32..64]
     }
-
+    /// Get a slice into the public key portion of the data.
     #[inline]
-    fn pk(&self) -> &[u8] {
+    pub fn pk(&self) -> &[u8] {
         &self.0[64..]
     }
 
@@ -97,7 +98,7 @@ impl Sm2Signature {
         let pub_key = PublicKey::from_slice(pubkey.as_bytes());
         let sig = efficient_sm2::Signature::new(self.r(), self.s())
             .map_err(|_| Error::InvalidSignature)?;
-        sig.verify_digest(&pub_key, message.as_bytes())
+        sig.verify(&pub_key, message.as_bytes())
             .map_err(|_| Error::RecoverError)
             .map(|_| true)
     }
@@ -107,7 +108,7 @@ impl Sm2Signature {
 pub fn sm2_sign(privkey: &Sm2Privkey, message: &Message) -> Result<Sm2Signature, Error> {
     let keypair = KeyPair::new(privkey.as_bytes()).map_err(|_| Error::InvalidPrivKey)?;
     let sig = keypair
-        .sign_digest(&mut DefaultRand(rand::thread_rng()), message.as_bytes())
+        .sign(message.as_bytes())
         .map_err(|_| Error::InvalidMessage)?;
 
     let mut sig_bytes = [0u8; SIGNATURE_BYTES_LEN];

@@ -1,7 +1,7 @@
 [package]
 name = "cita-tool"
 description = "basic method for cli"
-version = "0.21.1"
+version = "0.21.2"
 authors = [
     "piaoliu <441594700@qq.com>",
     "Qian Linfeng <thewawar@gmail.com>",
